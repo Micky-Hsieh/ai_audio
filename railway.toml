@@ -1,8 +1,5 @@
 [build]
-builder = "railpack"
+builder = "DOCKERFILE"
 
 [deploy]
 startCommand = "gunicorn app:app"
-
-[nixpacks]
-aptPkgs = ["ffmpeg"]

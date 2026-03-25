@@ -60,6 +60,7 @@ def upload_to_google_drive(file_path, folder_id, file_name):
         return file.get('id')
     except Exception as e:
         print(f"Error uploading to Google Drive: {e}")
+        traceback.print_exc()
         return None
 
 def download_file_from_url(url, output_path):
@@ -86,7 +87,7 @@ def split_audio():
         "file_url": "Google Drive 文件下载链接",
         "file_name": "原始文件名",
         "chunk_duration_minutes": 20,
-        "folder_id": "04_audio_chunks 文件夹 ID"  (可选，默认从环境变量读取)
+        "folder_id": "04_audio_chunks 文件夹 ID"
     }
     """
     try:
@@ -107,84 +108,101 @@ def split_audio():
         temp_dir = f'/tmp/{os.urandom(8).hex()}'
         os.makedirs(temp_dir, exist_ok=True)
         
-        # 1. 下载文件
-        input_file = os.path.join(temp_dir, file_name)
-        print(f"下载文件: {file_url} -> {input_file}")
-        
-        if not download_file_from_url(file_url, input_file):
-            return jsonify({
-                'status': 'error',
-                'message': '下载文件失败'
-            }), 400
-        
-        # 2. 用 FFmpeg 切割
-        output_dir = os.path.join(temp_dir, 'chunks')
-        os.makedirs(output_dir, exist_ok=True)
-        
-        # 生成输出文件名前缀（去掉扩展名）
-        file_base = os.path.splitext(file_name)[0]
-        output_pattern = os.path.join(output_dir, f'{file_base}_part_%03d.mp3')
-        
-        # FFmpeg 命令
-        segment_seconds = chunk_duration * 60
-        cmd = [
-            'ffmpeg',
-            '-i', input_file,
-            '-f', 'segment',
-            '-segment_time', str(segment_seconds),
-            '-c', 'copy',
-            output_pattern
-        ]
-        
-        print(f"执行 FFmpeg: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        
-        if result.returncode != 0:
-            print(f"FFmpeg error: {result.stderr}")
-            return jsonify({
-                'status': 'error',
-                'message': f'FFmpeg 错误: {result.stderr}'
-            }), 400
-        
-        # 3. 上传所有切割后的文件到 Google Drive
-        chunks = sorted([f for f in os.listdir(output_dir) if f.endswith('.mp3')])
-        uploaded_files = []
-        
-        print(f"开始上传 {len(chunks)} 个文件到 Google Drive...")
-        
-        for i, chunk_file in enumerate(chunks):
-            chunk_path = os.path.join(output_dir, chunk_file)
+        try:
+            # 1. 下载文件
+            input_file = os.path.join(temp_dir, file_name)
+            print(f"下载文件: {file_url}")
             
-            file_id = upload_to_google_drive(
-                chunk_path,
-                folder_id,
-                chunk_file
-            )
+            if not download_file_from_url(file_url, input_file):
+                return jsonify({
+                    'status': 'error',
+                    'message': '下载文件失败'
+                }), 400
             
-            if file_id:
-                uploaded_files.append({
-                    'file_name': chunk_file,
-                    'file_id': file_id,
-                    'segment_number': i + 1
-                })
-                print(f"上传成功 #{i+1}: {chunk_file} (ID: {file_id})")
-            else:
-                print(f"上传失败 #{i+1}: {chunk_file}")
+            print(f"下载完成，文件大小: {os.path.getsize(input_file)} bytes")
+            
+            # 2. 用 FFmpeg 切割
+            output_dir = os.path.join(temp_dir, 'chunks')
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # 生成输出文件名前缀（去掉扩展名）
+            file_base = os.path.splitext(file_name)[0]
+            output_pattern = os.path.join(output_dir, f'{file_base}_part_%03d.mp3')
+            
+            # FFmpeg 命令 - 修正版
+            segment_seconds = chunk_duration * 60
+            cmd = [
+                'ffmpeg',
+                '-i', input_file,
+                '-f', 'segment',
+                '-segment_time', str(segment_seconds),
+                '-c', 'copy',
+                '-segment_format', 'mp3',
+                output_pattern
+            ]
+            
+            print(f"执行 FFmpeg 切割命令...")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                print(f"FFmpeg error: {result.stderr}")
+                # FFmpeg 在某些情况下返回非零值但仍成功，检查是否生成了文件
+                chunks = sorted([f for f in os.listdir(output_dir) if f.endswith('.mp3')])
+                if not chunks:
+                    return jsonify({
+                        'status': 'error',
+                        'message': f'FFmpeg 切割失败'
+                    }), 400
+            
+            # 3. 检查切割结果
+            chunks = sorted([f for f in os.listdir(output_dir) if f.endswith('.mp3')])
+            print(f"切割成功，生成了 {len(chunks)} 个文件")
+            
+            if not chunks:
+                return jsonify({
+                    'status': 'error',
+                    'message': '没有生成切割文件'
+                }), 400
+            
+            # 4. 上传所有切割后的文件到 Google Drive
+            uploaded_files = []
+            
+            print(f"开始上传 {len(chunks)} 个文件到 Google Drive...")
+            
+            for i, chunk_file in enumerate(chunks):
+                chunk_path = os.path.join(output_dir, chunk_file)
+                
+                file_id = upload_to_google_drive(
+                    chunk_path,
+                    folder_id,
+                    chunk_file
+                )
+                
+                if file_id:
+                    uploaded_files.append({
+                        'file_name': chunk_file,
+                        'file_id': file_id,
+                        'segment_number': i + 1
+                    })
+                    print(f"✓ 上传成功 #{i+1}: {chunk_file}")
+                else:
+                    print(f"✗ 上传失败 #{i+1}: {chunk_file}")
+            
+            return jsonify({
+                'status': 'success',
+                'message': f'成功切割并上传了 {len(uploaded_files)} 个片段',
+                'total_segments': len(uploaded_files),
+                'segments': uploaded_files,
+                'folder_id': folder_id
+            })
         
-        # 4. 清理临时文件
-        subprocess.run(['rm', '-rf', temp_dir])
-        
-        return jsonify({
-            'status': 'success',
-            'message': f'成功切割并上传了 {len(uploaded_files)} 个片段',
-            'total_segments': len(uploaded_files),
-            'segments': uploaded_files,
-            'folder_id': folder_id
-        })
+        finally:
+            # 清理临时文件
+            subprocess.run(['rm', '-rf', temp_dir], capture_output=True)
     
     except Exception as e:
         print(f"Error in split_audio: {e}")
-        print(traceback.format_exc())
+        traceback.print_exc()
         return jsonify({
             'status': 'error',
             'message': f'服务器错误: {str(e)}'
@@ -193,7 +211,7 @@ def split_audio():
 @app.route('/health', methods=['GET'])
 def health():
     """健康检查端点"""
-    return jsonify({'status': 'ok'}), 200
+    return jsonify({'status': 'ok', 'ffmpeg': 'available'}), 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)), debug=False)

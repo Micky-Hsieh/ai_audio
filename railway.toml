@@ -3,3 +3,6 @@ builder = "railpack"
 
 [deploy]
 startCommand = "gunicorn app:app"
+
+[nixpacks]
+aptPkgs = ["ffmpeg"]

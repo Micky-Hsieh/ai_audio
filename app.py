@@ -129,15 +129,15 @@ def split_audio():
             file_base = os.path.splitext(file_name)[0]
             output_pattern = os.path.join(output_dir, f'{file_base}_part_%03d.mp3')
             
-            # FFmpeg 命令 - 修正版
+            # FFmpeg 命令 - 使用 libmp3lame 编码
             segment_seconds = chunk_duration * 60
             cmd = [
                 'ffmpeg',
                 '-i', input_file,
                 '-f', 'segment',
                 '-segment_time', str(segment_seconds),
-                '-c', 'copy',
-                '-segment_format', 'mp3',
+                '-codec:a', 'libmp3lame',
+                '-q:a', '9',
                 output_pattern
             ]
             

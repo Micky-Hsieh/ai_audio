@@ -1,5 +1,9 @@
 [build]
-builder = "DOCKERFILE"
+builder = "railpack"
+
+[build.nixpacks]
+providers = ["python"]
 
 [deploy]
-startCommand = "gunicorn app:app"
+startCommand = "python app.py"
+restartPolicyMaxRetries = 5

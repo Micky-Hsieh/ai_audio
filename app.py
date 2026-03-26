@@ -131,15 +131,25 @@ def split_audio():
             
             # FFmpeg 命令 - 使用 libmp3lame 编码
             segment_seconds = chunk_duration * 60
+            #cmd = [
+            #   'ffmpeg',
+            #    '-i', input_file,
+            #    '-f', 'segment',
+            #    '-segment_time', str(segment_seconds),
+            #    '-codec:a', 'libmp3lame',
+            #    '-q:a', '9',
+            #    output_pattern
+            #]
             cmd = [
                 'ffmpeg',
                 '-i', input_file,
                 '-f', 'segment',
                 '-segment_time', str(segment_seconds),
-                '-codec:a', 'libmp3lame',
-                '-q:a', '9',
+                '-c', 'copy',  # 直接複製，不重新編碼
                 output_pattern
             ]
+
+
             
             print(f"执行 FFmpeg 切割命令...")
             result = subprocess.run(cmd, capture_output=True, text=True)

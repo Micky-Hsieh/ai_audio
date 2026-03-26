@@ -86,7 +86,7 @@ def split_audio():
     {
         "file_url": "Google Drive 文件下载链接",
         "file_name": "原始文件名",
-        "chunk_duration_minutes": 20,
+        "chunk_duration_minutes": 10,
         "folder_id": "04_audio_chunks 文件夹 ID"
     }
     """
@@ -95,7 +95,7 @@ def split_audio():
         
         file_url = data.get('file_url')
         file_name = data.get('file_name', 'audio.mp3')
-        chunk_duration = data.get('chunk_duration_minutes', 20)
+        chunk_duration = data.get('chunk_duration_minutes', 10)
         folder_id = data.get('folder_id') or os.getenv('GOOGLE_DRIVE_CHUNKS_FOLDER')
         
         if not file_url or not folder_id:

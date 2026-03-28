@@ -23,14 +23,33 @@ GOOGLE_CREDENTIALS_JSON = os.getenv('GOOGLE_CREDENTIALS_JSON', '{}')
 def get_drive_service():
     """获取 Google Drive API 服务"""
     try:
-        credentials_dict = json.loads(GOOGLE_CREDENTIALS_JSON)
+        credentials_json = os.getenv('GOOGLE_CREDENTIALS_JSON', '{}')
+        
+        if credentials_json == '{}':
+            print(f"[ERROR] GOOGLE_CREDENTIALS_JSON 未設置或為空", flush=True)
+            return None
+        
+        print(f"[DEBUG] 讀取 GOOGLE_CREDENTIALS_JSON", flush=True)
+        
+        credentials_dict = json.loads(credentials_json)
+        
+        print(f"[DEBUG] 認證信息已解析", flush=True)
+        
         credentials = Credentials.from_service_account_info(
             credentials_dict,
             scopes=['https://www.googleapis.com/auth/drive']
         )
+        
+        print(f"[DEBUG] Google Drive 服務已初始化", flush=True)
+        
         return build('drive', 'v3', credentials=credentials)
+        
+    except json.JSONDecodeError as e:
+        print(f"[ERROR] JSON 解析失敗: {str(e)}", flush=True)
+        return None
     except Exception as e:
-        print(f"[ERROR] Error creating Drive service: {e}", flush=True)
+        print(f"[ERROR] Error creating Drive service: {str(e)}", flush=True)
+        traceback.print_exc()
         return None
 
 def upload_to_google_drive(file_path, folder_id, file_name):
@@ -57,30 +76,40 @@ def upload_to_google_drive(file_path, folder_id, file_name):
         }
         
         media = MediaFileUpload(file_path, mimetype='audio/mpeg')
+        
+        print(f"[DEBUG] 上传文件: {file_name} 到文件夾: {folder_id}", flush=True)
+        
         file = service.files().create(
             body=file_metadata,
             media_body=media,
             fields='id'
         ).execute()
         
-        return file.get('id')
+        file_id = file.get('id')
+        print(f"[DEBUG] 上传成功，file_id: {file_id}", flush=True)
+        return file_id
+        
     except Exception as e:
-        print(f"[ERROR] Error uploading to Google Drive: {e}", flush=True)
+        print(f"[ERROR] Error uploading to Google Drive: {str(e)}", flush=True)
+        print(f"[ERROR] 錯誤類型: {type(e).__name__}", flush=True)
         traceback.print_exc()
         return None
 
 def download_file_from_url(url, output_path):
     """从 URL 下载文件"""
     try:
+        print(f"[DEBUG] 開始下載: {url}", flush=True)
         response = requests.get(url, timeout=300)
         response.raise_for_status()
         
         with open(output_path, 'wb') as f:
             f.write(response.content)
         
+        print(f"[DEBUG] 下載完成: {output_path}", flush=True)
         return True
     except Exception as e:
         print(f"[ERROR] Error downloading file: {e}", flush=True)
+        traceback.print_exc()
         return False
 
 @app.route('/split-audio', methods=['POST'])
@@ -250,4 +279,3 @@ def health():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)), debug=False)
-關鍵修改總結

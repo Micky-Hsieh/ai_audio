@@ -30,7 +30,7 @@ def get_drive_service():
         )
         return build('drive', 'v3', credentials=credentials)
     except Exception as e:
-        print(f"Error creating Drive service: {e}", flush=True)
+        print(f"[ERROR] Error creating Drive service: {e}", flush=True)
         return None
 
 def upload_to_google_drive(file_path, folder_id, file_name):
@@ -48,6 +48,7 @@ def upload_to_google_drive(file_path, folder_id, file_name):
     try:
         service = get_drive_service()
         if not service:
+            print(f"[ERROR] Failed to get Drive service", flush=True)
             return None
         
         file_metadata = {
@@ -64,7 +65,7 @@ def upload_to_google_drive(file_path, folder_id, file_name):
         
         return file.get('id')
     except Exception as e:
-        print(f"Error uploading to Google Drive: {e}", flush=True)
+        print(f"[ERROR] Error uploading to Google Drive: {e}", flush=True)
         traceback.print_exc()
         return None
 
@@ -79,7 +80,7 @@ def download_file_from_url(url, output_path):
         
         return True
     except Exception as e:
-        print(f"Error downloading file: {e}", flush=True)
+        print(f"[ERROR] Error downloading file: {e}", flush=True)
         return False
 
 @app.route('/split-audio', methods=['POST'])
@@ -98,7 +99,7 @@ def split_audio():
     print("[DEBUG] 進入 split_audio 函數", flush=True)
     
     try:
-        # ✅ 修復：檢查 JSON 是否為空
+        # 檢查 JSON 是否為空
         data = request.get_json(force=True, silent=False)
         
         if data is None:
@@ -112,12 +113,20 @@ def split_audio():
         
         file_url = data.get('file_url')
         file_name = data.get('file_name', 'audio.mp3')
+        
+        # 確保 chunk_duration 是整數
         chunk_duration = data.get('chunk_duration_minutes', 10)
+        try:
+            chunk_duration = int(chunk_duration)
+        except (ValueError, TypeError):
+            print(f"[WARNING] chunk_duration 無效: {chunk_duration}，使用默認值 10", flush=True)
+            chunk_duration = 10
+        
         folder_id = data.get('folder_id') or os.getenv('GOOGLE_DRIVE_CHUNKS_FOLDER')
         
         print(f"[DEBUG] file_url: {file_url}", flush=True)
         print(f"[DEBUG] file_name: {file_name}", flush=True)
-        print(f"[DEBUG] chunk_duration: {chunk_duration}", flush=True)
+        print(f"[DEBUG] chunk_duration (int): {chunk_duration}", flush=True)
         print(f"[DEBUG] folder_id: {folder_id}", flush=True)
         
         if not file_url or not folder_id:
@@ -157,6 +166,8 @@ def split_audio():
             
             # FFmpeg 命令 - 直接複製，不重新編碼
             segment_seconds = chunk_duration * 60
+            print(f"[DEBUG] segment_seconds: {segment_seconds} (type: {type(segment_seconds).__name__})", flush=True)
+            
             cmd = [
                 'ffmpeg',
                 '-i', input_file,
@@ -239,3 +250,4 @@ def health():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)), debug=False)
+關鍵修改總結

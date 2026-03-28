@@ -78,11 +78,12 @@ def upload_to_google_drive(file_path, folder_id, file_name):
         media = MediaFileUpload(file_path, mimetype='audio/mpeg')
         
         print(f"[DEBUG] 上传文件: {file_name} 到文件夾: {folder_id}", flush=True)
-        
+         # ✅ 添加 supportsAllDrives=True 以支持 Shared Drive
         file = service.files().create(
             body=file_metadata,
             media_body=media,
-            fields='id'
+            fields='id',
+            supportsAllDrives=True  # ← 關鍵！
         ).execute()
         
         file_id = file.get('id')
